@@ -50,6 +50,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "last_project_path": "",
         "recent_files": [],
         "open_tabs": [],
+        "current_tab_index": 0,
+        "show_hidden": False,
+        "max_recent": 10,
     },
 }
 

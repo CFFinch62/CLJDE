@@ -1,9 +1,14 @@
 """Main application toolbar for CLIDE.
 
-Builds a single horizontal toolbar with stub ``QAction`` entries for
-the most common commands. Every action is wired to a named stub on the
-main window so Phase 2+ can replace the stubs without touching this
+Builds a single horizontal toolbar with ``QAction`` entries for the
+most common commands. Every action is wired to a named slot on the
+main window so later phases can replace the slot without touching this
 module. Icons are deferred to Phase 8; for now the toolbar is text-only.
+
+Shortcuts are owned by the menu bar, not the toolbar: assigning the
+same key sequence to two distinct ``QAction`` instances triggers Qt's
+"ambiguous shortcut overload" path and silently suppresses both. The
+tooltip here shows the menu's shortcut for discoverability.
 """
 
 from __future__ import annotations
@@ -70,13 +75,12 @@ def _add_eval_group(tb: QToolBar, window: "MainWindow") -> None:
 def _make_action(
     parent: QWidget,
     text: str,
-    shortcut: str | None,
+    shortcut_hint: str | None,
     slot,
 ) -> QAction:
-    """Create a ``QAction`` wired to ``slot`` with an optional shortcut."""
+    """Create a shortcut-free ``QAction`` whose tooltip shows the menu key."""
     action = QAction(text, parent)
-    if shortcut:
-        action.setShortcut(shortcut)
-    action.setToolTip(text)
+    tooltip = f"{text} ({shortcut_hint})" if shortcut_hint else text
+    action.setToolTip(tooltip)
     action.triggered.connect(slot)
     return action

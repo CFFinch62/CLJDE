@@ -53,6 +53,7 @@ class EditorWidget(QPlainTextEdit):
     ) -> None:
         super().__init__(parent)
         self._settings = settings
+        self._file_path: str | None = None
         self._line_number_area = LineNumberArea(self)
         self._highlighter = ClojureHighlighter(self.document())
 
@@ -85,6 +86,30 @@ class EditorWidget(QPlainTextEdit):
         if self._settings is None:
             return DEFAULT_TAB_WIDTH
         return int(self._settings.get("editor", "tab_width", DEFAULT_TAB_WIDTH))
+
+    def file_path(self) -> str | None:
+        """Return the filesystem path associated with this editor, if any."""
+        return self._file_path
+
+    def set_file_path(self, path: str | None) -> None:
+        """Associate a filesystem path with this editor (or clear it)."""
+        self._file_path = path
+
+    def cursor_line_column(self) -> tuple[int, int]:
+        """Return the current cursor position as 1-based (line, column)."""
+        cursor = self.textCursor()
+        return cursor.blockNumber() + 1, cursor.columnNumber() + 1
+
+    def set_cursor_line_column(self, line: int, column: int) -> None:
+        """Move the cursor to 1-based (line, column); clamped to document."""
+        doc = self.document()
+        block = doc.findBlockByNumber(max(0, line - 1))
+        if not block.isValid():
+            block = doc.lastBlock()
+        col = max(0, min(column - 1, block.length() - 1))
+        cursor = self.textCursor()
+        cursor.setPosition(block.position() + col)
+        self.setTextCursor(cursor)
 
     # --------------------------------------------------------- gutter support
 

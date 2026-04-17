@@ -53,6 +53,7 @@ VIEW_MENU: list[MenuEntry] = [
     ("Toggle REPL",        "F10",     "stub_view_toggle_repl",        True),
     ("Toggle Namespaces",  "F11",     "stub_view_toggle_namespaces",  True),
     (None, None, None, False),
+    ("Show Hidden Files",  None,      "stub_view_show_hidden",        True),
     ("Rainbow Parens",     None,      "stub_view_rainbow_parens",     True),
     (None, None, None, False),
     ("Full Screen",        "F12",     "stub_view_full_screen",        True),
@@ -109,7 +110,7 @@ def _populate_menu(
             menu.addSeparator()
             continue
         slot = _resolve_slot(window, slot_name, f"{menu.title()} | {label}")
-        action = _make_action(menu, label, shortcut, slot, checkable)
+        action = _make_action(menu, label, shortcut, slot, checkable, slot_name)
         menu.addAction(action)
 
 
@@ -119,9 +120,12 @@ def _make_action(
     shortcut: str | None,
     slot: Callable[[], None],
     checkable: bool,
+    object_name: str | None = None,
 ) -> QAction:
     """Create a configured ``QAction`` connected to ``slot``."""
     action = QAction(label, parent)
+    if object_name:
+        action.setObjectName(object_name)
     if shortcut:
         action.setShortcut(QKeySequence(shortcut))
     action.setCheckable(checkable)

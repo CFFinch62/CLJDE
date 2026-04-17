@@ -1,32 +1,32 @@
 """CLIDE main window: four-zone layout with persistent geometry.
 
-The central widget is a placeholder for the editor tabs. Three
-``QDockWidget`` instances host the file tree (left), namespace browser
-(right), and REPL pane (bottom). All four zones are ``QLabel``
-placeholders for Phase 1 — functional widgets replace them in later
-phases without changing this layout.
-
-Menu and toolbar actions are wired to ``stub_*`` methods on this class;
-every stub logs ``not implemented: <menu path>`` so clicking through
-the UI produces visible activity in the log file.
+The central widget hosts a :class:`TabManager` of Clojure editors. The
+left dock contains a :class:`FileTreeWidget` rooted at the current
+project; the right and bottom docks remain placeholders for the
+namespace browser and REPL until later phases populate them.
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtGui import QAction, QCloseEvent
 from PyQt6.QtWidgets import (
     QDockWidget,
     QLabel,
     QMainWindow,
+    QMenu,
     QWidget,
 )
 
 from clide import __version__
 from clide.config.settings import Settings
 from clide.editor.editor_widget import EditorWidget
+from clide.files import file_ops
+from clide.files.file_tree import FileTreeWidget
+from clide.files.tab_manager import TabManager
 from clide.ui.menubar import build_menu_bar
 from clide.ui.status_bar import ClideStatusBar
 from clide.ui.toolbar import build_main_toolbar
@@ -68,35 +68,51 @@ class MainWindow(QMainWindow):
         self._status_bar.clear_cursor_position()
         self._status_bar.set_repl_status("REPL: disconnected", connected=False)
 
-        self._wire_editor_signals()
+        self._wire_signals()
+        self._attach_recent_menu()
         self._restore_geometry()
+        file_ops.restore_session(self)
+        self._apply_show_hidden_from_settings()
         log.info("MainWindow initialised.")
 
     # ------------------------------------------------------------------ layout
 
     def _build_central(self) -> None:
-        """Create the central editor widget (Phase 2: single editor, no tabs)."""
-        self._editor = EditorWidget(self._settings, parent=self)
-        self._editor.setObjectName("mainEditor")
-        self.setCentralWidget(self._editor)
+        """Create the central tab manager hosting Clojure editors."""
+        self._tabs = TabManager(self._settings, parent=self)
+        self._tabs.setObjectName("mainTabs")
+        self.setCentralWidget(self._tabs)
 
-    def _wire_editor_signals(self) -> None:
-        """Connect the central editor's signals to the status bar."""
-        self._editor.cursor_position_changed_signal.connect(
+    def _wire_signals(self) -> None:
+        """Connect tab manager and file tree signals into main-window slots."""
+        self._tabs.cursor_position_changed_signal.connect(
             self._status_bar.set_cursor_position,
         )
-        # Seed the status bar with the editor's starting cursor position.
-        self._status_bar.set_cursor_position(1, 1)
+        self._tabs.current_file_changed_signal.connect(self._on_current_file_changed)
+        self._tree.file_requested_signal.connect(
+            lambda p: file_ops.open_file(self._tabs, p),
+        )
 
-    def editor(self) -> EditorWidget:
-        """Return the central editor widget."""
-        return self._editor
+    def tab_manager(self) -> TabManager:
+        """Return the central tab manager."""
+        return self._tabs
+
+    def file_tree(self) -> FileTreeWidget:
+        """Return the project file tree widget."""
+        return self._tree
+
+    def settings(self) -> Settings:
+        """Return the live settings instance."""
+        return self._settings
+
+    def editor(self) -> EditorWidget | None:
+        """Return the active editor, or ``None`` if no tabs are open."""
+        return self._tabs.current_editor()
 
     def _build_docks(self) -> None:
-        """Create the left/right/bottom dock widgets with placeholders."""
-        self._tree_dock = _dock(
-            "File Tree", "fileTreeDock", _placeholder("File Tree", "fileTreePlaceholder"),
-        )
+        """Create the left/right/bottom dock widgets."""
+        self._tree = FileTreeWidget(self)
+        self._tree_dock = _dock("File Tree", "fileTreeDock", self._tree)
         self._tree_dock.setMinimumWidth(LEFT_DOCK_WIDTH // 2)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._tree_dock)
 
@@ -138,17 +154,31 @@ class MainWindow(QMainWindow):
             self.resize(w, h)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (Qt override)
-        """Persist window geometry/state on close, then accept the event."""
+        """Persist session first, then prompt for unsaved tabs and save geometry."""
+        try:
+            file_ops.save_session(self)
+        except Exception:  # pragma: no cover - defensive
+            log.exception("Failed to save session.")
+        if not self._confirm_close_all_tabs():
+            event.ignore()
+            return
         try:
             self._settings.set_window_geometry(self.saveGeometry())
             self._settings.set_window_state(self.saveState())
             self._settings.set("window", "width", self.width())
             self._settings.set("window", "height", self.height())
             self._settings.save()
-            log.info("Window geometry saved.")
+            log.info("Window state and session saved.")
         except Exception:  # pragma: no cover - defensive
-            log.exception("Failed to save window geometry.")
+            log.exception("Failed to save window state.")
         super().closeEvent(event)
+
+    def _confirm_close_all_tabs(self) -> bool:
+        """Close each tab in turn; return False if any prompt was cancelled."""
+        while self._tabs.count() > 0:
+            if not self._tabs.close_current():
+                return False
+        return True
 
     # -------------------------------------------------------------- public API
 
@@ -161,60 +191,113 @@ class MainWindow(QMainWindow):
         log.info("not implemented: %s", menu_path)
         self._status_bar.show_transient(f"Not implemented: {menu_path}", 3000)
 
-    # ------------------------------------------------- menu/toolbar stub slots
+    def _start_dir(self) -> str:
+        """Return a reasonable starting directory for file dialogs."""
+        project = self._tree.project()
+        if project is not None:
+            return str(project.root)
+        last = self._settings.get("files", "last_project_path", "") or ""
+        return last or str(Path.home())
+
+    def _on_current_file_changed(self, path: object) -> None:
+        """Sync status bar and file-tree highlight with the active editor."""
+        if isinstance(path, str) and path:
+            self._status_bar.set_file_info(path)
+            self._tree.highlight_path(path)
+        else:
+            self._status_bar.set_file_info("no file")
+            self._tree.highlight_path(None)
+
+    def _attach_recent_menu(self) -> None:
+        """Swap the flat Recent Files action for a dynamically-built submenu."""
+        action = self.findChild(QAction, "stub_file_recent")
+        if action is None:
+            return
+        menu = QMenu("Recent Files", self)
+        action.setMenu(menu)
+        menu.aboutToShow.connect(
+            lambda: file_ops.populate_recent_menu(menu, self._settings, self._tabs),
+        )
+
+    def _apply_show_hidden_from_settings(self) -> None:
+        """Sync the View > Show Hidden toggle with the file tree."""
+        show = bool(self._settings.get("files", "show_hidden", False))
+        self._tree.set_show_hidden(show)
+        action = self.findChild(QAction, "stub_view_show_hidden")
+        if action is not None:
+            action.setChecked(show)
+
+    # ------------------------------------------------- menu/toolbar slots
 
     def stub_file_new(self) -> None:
-        """Stub for File > New."""
-        self.log_not_implemented("File | New")
+        """File > New — add an untitled editor tab."""
+        file_ops.new_file(self._tabs)
 
     def stub_file_open(self) -> None:
-        """Stub for File > Open File."""
-        self.log_not_implemented("File | Open File")
+        """File > Open File — prompt and open in a new tab."""
+        file_ops.open_file_dialog(self, self._tabs, self._start_dir())
 
     def stub_file_open_project(self) -> None:
-        """Stub for File > Open Project."""
-        self.log_not_implemented("File | Open Project")
+        """File > Open Project — prompt for a directory and bind it."""
+        file_ops.open_project_dialog(self, self)
 
     def stub_file_save(self) -> None:
-        """Stub for File > Save."""
-        self.log_not_implemented("File | Save")
+        """File > Save — save the active tab (or Save As for untitled)."""
+        if not file_ops.save_file(self._tabs):
+            editor = self._tabs.current_editor()
+            if editor is not None and editor.file_path() is None:
+                file_ops.save_file_as(self, self._tabs)
 
     def stub_file_save_as(self) -> None:
-        """Stub for File > Save As."""
-        self.log_not_implemented("File | Save As")
+        """File > Save As — prompt for a path and write the active tab."""
+        file_ops.save_file_as(self, self._tabs)
 
     def stub_file_recent(self) -> None:
-        """Stub for File > Recent Files."""
-        self.log_not_implemented("File | Recent Files")
+        """File > Recent Files — no-op; the submenu handles activation."""
+        return
 
     def stub_file_exit(self) -> None:
         """Close the window (Exit menu item)."""
         log.info("File | Exit -> closing main window.")
         self.close()
 
+    def _delegate_to_editor(self, method: str, path: str) -> None:
+        """Invoke ``method`` on the active editor, logging if none exists."""
+        editor = self._tabs.current_editor()
+        if editor is None:
+            self.log_not_implemented(path)
+            return
+        getattr(editor, method)()
+
     def stub_edit_undo(self) -> None:
-        """Stub for Edit > Undo."""
-        self.log_not_implemented("Edit | Undo")
+        """Edit > Undo on the active editor."""
+        self._delegate_to_editor("undo", "Edit | Undo")
 
     def stub_edit_redo(self) -> None:
-        """Stub for Edit > Redo."""
-        self.log_not_implemented("Edit | Redo")
+        """Edit > Redo on the active editor."""
+        self._delegate_to_editor("redo", "Edit | Redo")
 
     def stub_edit_cut(self) -> None:
-        """Stub for Edit > Cut."""
-        self.log_not_implemented("Edit | Cut")
+        """Edit > Cut on the active editor."""
+        self._delegate_to_editor("cut", "Edit | Cut")
 
     def stub_edit_copy(self) -> None:
-        """Stub for Edit > Copy."""
-        self.log_not_implemented("Edit | Copy")
+        """Edit > Copy on the active editor."""
+        self._delegate_to_editor("copy", "Edit | Copy")
 
     def stub_edit_paste(self) -> None:
-        """Stub for Edit > Paste."""
-        self.log_not_implemented("Edit | Paste")
+        """Edit > Paste on the active editor."""
+        self._delegate_to_editor("paste", "Edit | Paste")
 
     def stub_edit_find(self) -> None:
-        """Stub for Edit > Find."""
+        """Edit > Find — placeholder until a find dialog ships."""
         self.log_not_implemented("Edit | Find")
+
+    def stub_view_show_hidden(self, checked: bool = False) -> None:
+        """Toggle display of hidden files in the project tree."""
+        self._tree.set_show_hidden(checked)
+        self._settings.set("files", "show_hidden", bool(checked))
+        log.info("View | Show Hidden Files -> %s", checked)
 
     def stub_view_toggle_tree(self, checked: bool = True) -> None:
         """Toggle the visibility of the file tree dock."""
