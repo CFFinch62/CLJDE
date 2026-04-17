@@ -1,0 +1,17 @@
+{
+    "name": "default",
+    "description": "CLIDE amber/blue/dark default palette",
+    "palette": {
+        "background_dark":   "#1a1a1a",
+        "background_medium": "#252525",
+        "background_light":  "#2d2d2d",
+        "foreground":        "#e0e0e0",
+        "foreground_dim":    "#a0a0a0",
+        "amber_primary":     "#ffb000",
+        "amber_bright":      "#ffcc44",
+        "blue_primary":      "#4a90e2",
+        "blue_bright":       "#6bb6ff",
+        "error_red":         "#e04848",
+        "success_green":     "#50c878"
+    }
+}
