@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 
 from clide import __version__
 from clide.config.settings import Settings
+from clide.editor.editor_widget import EditorWidget
 from clide.ui.menubar import build_menu_bar
 from clide.ui.status_bar import ClideStatusBar
 from clide.ui.toolbar import build_main_toolbar
@@ -67,15 +68,29 @@ class MainWindow(QMainWindow):
         self._status_bar.clear_cursor_position()
         self._status_bar.set_repl_status("REPL: disconnected", connected=False)
 
+        self._wire_editor_signals()
         self._restore_geometry()
         log.info("MainWindow initialised.")
 
     # ------------------------------------------------------------------ layout
 
     def _build_central(self) -> None:
-        """Create the central editor-area placeholder."""
-        self._editor_placeholder = _placeholder("Editor Area", object_name="editorPlaceholder")
-        self.setCentralWidget(self._editor_placeholder)
+        """Create the central editor widget (Phase 2: single editor, no tabs)."""
+        self._editor = EditorWidget(self._settings, parent=self)
+        self._editor.setObjectName("mainEditor")
+        self.setCentralWidget(self._editor)
+
+    def _wire_editor_signals(self) -> None:
+        """Connect the central editor's signals to the status bar."""
+        self._editor.cursor_position_changed_signal.connect(
+            self._status_bar.set_cursor_position,
+        )
+        # Seed the status bar with the editor's starting cursor position.
+        self._status_bar.set_cursor_position(1, 1)
+
+    def editor(self) -> EditorWidget:
+        """Return the central editor widget."""
+        return self._editor
 
     def _build_docks(self) -> None:
         """Create the left/right/bottom dock widgets with placeholders."""
