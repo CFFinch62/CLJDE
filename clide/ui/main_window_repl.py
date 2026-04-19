@@ -19,6 +19,7 @@ from clide.editor import form_detector
 from clide.nrepl.client import NreplClient
 from clide.nrepl.session import SessionManager
 from clide.repl.repl_pane import ReplPane
+from clide.ui import toolbar as toolbar_mod
 from clide.ui.connect_dialog import ConnectDialog
 
 if TYPE_CHECKING:
@@ -140,6 +141,113 @@ def open_connect_dialog(window: "MainWindow") -> None:
 def disconnect(window: "MainWindow") -> None:
     """Disconnect the REPL pane from its nREPL endpoint."""
     window.repl_pane().disconnect()
+
+
+# ------------------------------------------------------ process lifecycle
+
+def refresh_repl_ui(window: "MainWindow") -> None:
+    """Recompute REPL toolbar button states and crash indicator on the status bar."""
+    project = window.file_tree().project()
+    is_clojure = project is not None and project.type in ("lein", "deps")
+    state = window.process_manager().state()
+    running = state in ("starting", "running")
+    stopping = state == "stopping"
+    can_start = is_clojure and not running and not stopping
+    can_stop = running
+    can_restart = is_clojure and not stopping
+    toolbar_mod.set_repl_button_states(
+        window.toolbar(),
+        can_start=can_start,
+        can_stop=can_stop,
+        can_restart=can_restart,
+    )
+    if state == "crashed":
+        window.status_bar().set_repl_status("REPL: crashed", error=True)
+
+
+def wire_process_manager(window: "MainWindow") -> None:
+    """Connect the :class:`ReplProcessManager` signals into the main window."""
+    pm = window.process_manager()
+    pm.process_state_signal.connect(lambda s: _on_process_state(window, s))
+    pm.port_detected_signal.connect(lambda p: auto_connect_after_startup(window, p))
+    pm.output_line_signal.connect(lambda line, stream: _on_process_output(window, line, stream))
+    pm.error_signal.connect(lambda msg: _on_process_error(window, msg))
+    refresh_repl_ui(window)
+
+
+def start_repl(window: "MainWindow") -> None:
+    """REPL > Start — spawn an nREPL for the current project and auto-connect."""
+    project = window.file_tree().project()
+    if project is None:
+        _notice(window, "Open a project first", beep=True)
+        return
+    if project.type not in ("lein", "deps"):
+        _notice(window, "Cannot start REPL for non-Clojure project", beep=True)
+        return
+    pm = window.process_manager()
+    if pm.is_running():
+        _notice(window, "REPL already running; use Restart to replace it.")
+        return
+    window.repl_pane().output_view().append_info(
+        f"Starting REPL in {project.root}...",
+    )
+    pm.start(project, window.settings())
+
+
+def stop_repl(window: "MainWindow") -> None:
+    """REPL > Stop — disconnect the client then terminate the child process."""
+    pane = window.repl_pane()
+    pm = window.process_manager()
+    if pane.endpoint() is not None:
+        pane.disconnect()
+    if pm.is_running():
+        pane.output_view().append_info("Stopping REPL...")
+        pm.stop()
+
+
+def restart_repl(window: "MainWindow") -> None:
+    """REPL > Restart — stop the current process then start a fresh one."""
+    project = window.file_tree().project()
+    if project is None or project.type not in ("lein", "deps"):
+        _notice(window, "Cannot restart: no Clojure project open", beep=True)
+        return
+    pane = window.repl_pane()
+    pm = window.process_manager()
+    if pane.endpoint() is not None:
+        pane.disconnect()
+    pane.output_view().append_info("Restarting REPL...")
+    pm.restart(project, window.settings())
+
+
+def auto_connect_after_startup(window: "MainWindow", port: int) -> None:
+    """Connect the nREPL client to ``port`` once the spawned process is listening."""
+    pane = window.repl_pane()
+    pane.output_view().append_info(f"nREPL on port {port}, connecting...")
+    pane.connect_to("127.0.0.1", port)
+
+
+def _on_process_state(window: "MainWindow", state: str) -> None:
+    """Recompose the UI on every process-state transition and log crashes."""
+    if state == "crashed":
+        window.repl_pane().output_view().append_info(
+            "REPL process crashed or exited unexpectedly.",
+        )
+    elif state == "stopped":
+        window.repl_pane().output_view().append_info("REPL process stopped.")
+    refresh_repl_ui(window)
+
+
+def _on_process_output(window: "MainWindow", line: str, _stream: str) -> None:
+    """Stream a line of REPL-process output into the pane in the info colour."""
+    if not line:
+        return
+    window.repl_pane().output_view().append_info(line)
+
+
+def _on_process_error(window: "MainWindow", message: str) -> None:
+    """Surface a :class:`ReplProcessManager` error to the user."""
+    window.repl_pane().output_view().append_info(f"REPL error: {message}")
+    window.status_bar().show_transient(message, 4000)
 
 
 def _line_column(text: str, pos: int) -> tuple[int, int]:

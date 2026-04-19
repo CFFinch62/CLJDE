@@ -115,6 +115,8 @@ def open_project(main_window: "MainWindow", path: str) -> None:
         f"Project: {project.name} ({project.type})", 4000,
     )
     log.info("Opened project %s (%s) at %s", project.name, project.type, project.root)
+    from clide.ui import main_window_repl
+    main_window_repl.refresh_repl_ui(main_window)
 
 
 # --------------------------------------------------------- recent files

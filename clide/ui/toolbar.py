@@ -24,6 +24,10 @@ if TYPE_CHECKING:
 
 TOOLBAR_OBJECT_NAME = "ClideMainToolBar"
 
+REPL_START_ACTION_NAME = "toolbar_repl_start"
+REPL_STOP_ACTION_NAME = "toolbar_repl_stop"
+REPL_RESTART_ACTION_NAME = "toolbar_repl_restart"
+
 
 def build_main_toolbar(window: "MainWindow") -> QToolBar:
     """Construct and return the CLIDE main toolbar attached to ``window``."""
@@ -57,10 +61,37 @@ def _add_edit_group(tb: QToolBar, window: "MainWindow") -> None:
 
 
 def _add_repl_group(tb: QToolBar, window: "MainWindow") -> None:
-    """Add REPL lifecycle actions to the toolbar."""
-    tb.addAction(_make_action(tb, "Start REPL", None, window.stub_repl_start))
-    tb.addAction(_make_action(tb, "Stop REPL", None, window.stub_repl_stop))
-    tb.addAction(_make_action(tb, "Restart REPL", None, window.stub_repl_restart))
+    """Add REPL lifecycle actions to the toolbar; Stop/Restart start disabled."""
+    start = _make_action(tb, "Start REPL", None, window.stub_repl_start)
+    start.setObjectName(REPL_START_ACTION_NAME)
+    start.setEnabled(False)
+    stop = _make_action(tb, "Stop REPL", None, window.stub_repl_stop)
+    stop.setObjectName(REPL_STOP_ACTION_NAME)
+    stop.setEnabled(False)
+    restart = _make_action(tb, "Restart REPL", None, window.stub_repl_restart)
+    restart.setObjectName(REPL_RESTART_ACTION_NAME)
+    restart.setEnabled(False)
+    tb.addAction(start)
+    tb.addAction(stop)
+    tb.addAction(restart)
+
+
+def set_repl_button_states(
+    toolbar: QToolBar,
+    *,
+    can_start: bool,
+    can_stop: bool,
+    can_restart: bool,
+) -> None:
+    """Toggle the enable state of the three REPL lifecycle toolbar actions."""
+    for name, enabled in (
+        (REPL_START_ACTION_NAME, can_start),
+        (REPL_STOP_ACTION_NAME, can_stop),
+        (REPL_RESTART_ACTION_NAME, can_restart),
+    ):
+        action = toolbar.findChild(QAction, name)
+        if action is not None:
+            action.setEnabled(enabled)
 
 
 def _add_eval_group(tb: QToolBar, window: "MainWindow") -> None:

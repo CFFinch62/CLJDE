@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMenu,
+    QToolBar,
     QWidget,
 )
 
@@ -27,6 +28,7 @@ from clide.editor.editor_widget import EditorWidget
 from clide.files import file_ops
 from clide.files.file_tree import FileTreeWidget
 from clide.files.tab_manager import TabManager
+from clide.repl.process_manager import ReplProcessManager
 from clide.repl.repl_pane import ReplPane
 from clide.ui import main_window_repl
 from clide.ui.menubar import build_menu_bar
@@ -58,9 +60,8 @@ class MainWindow(QMainWindow):
         )
 
         self._build_central()
-        self._client, self._session_manager, self._repl_pane = (
-            main_window_repl.build_repl(self)
-        )
+        self._client, self._session_manager, self._repl_pane = main_window_repl.build_repl(self)
+        self._process_manager = ReplProcessManager()
         self._build_docks()
 
         self.setMenuBar(build_menu_bar(self))
@@ -74,6 +75,7 @@ class MainWindow(QMainWindow):
         self._status_bar.set_repl_status("REPL: disconnected", connected=False)
 
         self._wire_signals()
+        main_window_repl.wire_process_manager(self)
         self._attach_recent_menu()
         self._restore_geometry()
         file_ops.restore_session(self)
@@ -124,6 +126,10 @@ class MainWindow(QMainWindow):
         """Return the active editor, or ``None`` if no tabs are open."""
         return self._tabs.current_editor()
 
+    def process_manager(self) -> ReplProcessManager:
+        """Return the :class:`ReplProcessManager` supervising the nREPL process."""
+        return self._process_manager
+
     def _build_docks(self) -> None:
         """Create the left/right/bottom dock widgets."""
         self._tree = FileTreeWidget(self)
@@ -167,7 +173,7 @@ class MainWindow(QMainWindow):
             self.resize(w, h)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (Qt override)
-        """Persist session first, then prompt for unsaved tabs and save geometry."""
+        """Persist session, stop the REPL process, and save geometry on close."""
         try:
             file_ops.save_session(self)
         except Exception:  # pragma: no cover - defensive
@@ -175,6 +181,8 @@ class MainWindow(QMainWindow):
         if not self._confirm_close_all_tabs():
             event.ignore()
             return
+        if self._process_manager.is_running():
+            self._process_manager.stop()
         try:
             self._settings.set_window_geometry(self.saveGeometry())
             self._settings.set_window_state(self.saveState())
@@ -198,6 +206,10 @@ class MainWindow(QMainWindow):
     def status_bar(self) -> ClideStatusBar:
         """Return the main window's status bar."""
         return self._status_bar
+
+    def toolbar(self) -> QToolBar:
+        """Return the main application toolbar."""
+        return self._toolbar
 
     def log_not_implemented(self, menu_path: str) -> None:
         """Record that ``menu_path`` has no implementation yet."""
@@ -333,16 +345,16 @@ class MainWindow(QMainWindow):
         log.info("View | Full Screen -> %s", checked)
 
     def stub_repl_start(self) -> None:
-        """Stub for REPL > Start."""
-        self.log_not_implemented("REPL | Start")
+        """REPL > Start — spawn an nREPL for the current project and auto-connect."""
+        main_window_repl.start_repl(self)
 
     def stub_repl_stop(self) -> None:
-        """Stub for REPL > Stop."""
-        self.log_not_implemented("REPL | Stop")
+        """REPL > Stop — disconnect and terminate the nREPL process."""
+        main_window_repl.stop_repl(self)
 
     def stub_repl_restart(self) -> None:
-        """Stub for REPL > Restart."""
-        self.log_not_implemented("REPL | Restart")
+        """REPL > Restart — stop then start a fresh nREPL process."""
+        main_window_repl.restart_repl(self)
 
     def stub_repl_connect(self) -> None:
         """REPL > Connect External — open the connection dialog."""

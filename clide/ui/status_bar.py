@@ -56,10 +56,21 @@ class ClideStatusBar(QStatusBar):
         """Clear the cursor position section when no editor is focused."""
         self._cursor_label.setText("—")
 
-    def set_repl_status(self, text: str, *, connected: bool = False) -> None:
+    def set_repl_status(
+        self,
+        text: str,
+        *,
+        connected: bool = False,
+        error: bool = False,
+    ) -> None:
         """Set the right section's REPL status text and colour."""
         self._repl_label.setText(text)
-        colour = DEFAULT_PALETTE.success_green if connected else DEFAULT_PALETTE.foreground_dim
+        if error:
+            colour = DEFAULT_PALETTE.error_red
+        elif connected:
+            colour = DEFAULT_PALETTE.success_green
+        else:
+            colour = DEFAULT_PALETTE.foreground_dim
         self._repl_label.setStyleSheet(f"color: {colour};")
 
     def show_transient(self, message: str, timeout_ms: int = 4000) -> None:
