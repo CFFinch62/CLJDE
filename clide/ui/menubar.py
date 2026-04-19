@@ -64,6 +64,7 @@ REPL_MENU: list[MenuEntry] = [
     ("Stop",             None,               "stub_repl_stop",       False),
     ("Restart",          None,               "stub_repl_restart",    False),
     ("Connect External...", None,            "stub_repl_connect",    False),
+    ("Disconnect",       None,               "stub_repl_disconnect", False),
     (None, None, None, False),
     ("Eval Form",        "Ctrl+Return",      "stub_eval_form",       False),
     ("Eval Selection",   "Ctrl+Shift+Return","stub_eval_selection",  False),
@@ -128,6 +129,7 @@ def _make_action(
         action.setObjectName(object_name)
     if shortcut:
         action.setShortcut(QKeySequence(shortcut))
+    action.setAutoRepeat(False)
     action.setCheckable(checkable)
     if checkable:
         action.toggled.connect(lambda checked, s=slot: s(checked))

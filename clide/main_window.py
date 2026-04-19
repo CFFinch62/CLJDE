@@ -27,6 +27,8 @@ from clide.editor.editor_widget import EditorWidget
 from clide.files import file_ops
 from clide.files.file_tree import FileTreeWidget
 from clide.files.tab_manager import TabManager
+from clide.repl.repl_pane import ReplPane
+from clide.ui import main_window_repl
 from clide.ui.menubar import build_menu_bar
 from clide.ui.status_bar import ClideStatusBar
 from clide.ui.toolbar import build_main_toolbar
@@ -56,6 +58,9 @@ class MainWindow(QMainWindow):
         )
 
         self._build_central()
+        self._client, self._session_manager, self._repl_pane = (
+            main_window_repl.build_repl(self)
+        )
         self._build_docks()
 
         self.setMenuBar(build_menu_bar(self))
@@ -92,10 +97,20 @@ class MainWindow(QMainWindow):
         self._tree.file_requested_signal.connect(
             lambda p: file_ops.open_file(self._tabs, p),
         )
+        self._client.connection_state_signal.connect(
+            lambda s: main_window_repl.on_connection_state(self, s),
+        )
+        self._repl_pane.ns_changed_signal.connect(
+            lambda ns: main_window_repl.on_ns_changed(self, ns),
+        )
 
     def tab_manager(self) -> TabManager:
         """Return the central tab manager."""
         return self._tabs
+
+    def repl_pane(self) -> ReplPane:
+        """Return the docked REPL pane."""
+        return self._repl_pane
 
     def file_tree(self) -> FileTreeWidget:
         """Return the project file tree widget."""
@@ -122,9 +137,7 @@ class MainWindow(QMainWindow):
         self._ns_dock.setMinimumWidth(RIGHT_DOCK_WIDTH // 2)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._ns_dock)
 
-        self._repl_dock = _dock(
-            "REPL", "replDock", _placeholder("REPL", "replPlaceholder"),
-        )
+        self._repl_dock = _dock("REPL", "replDock", self._repl_pane)
         self._repl_dock.setMinimumHeight(BOTTOM_DOCK_HEIGHT // 2)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self._repl_dock)
 
@@ -252,10 +265,6 @@ class MainWindow(QMainWindow):
         """File > Save As — prompt for a path and write the active tab."""
         file_ops.save_file_as(self, self._tabs)
 
-    def stub_file_recent(self) -> None:
-        """File > Recent Files — no-op; the submenu handles activation."""
-        return
-
     def stub_file_exit(self) -> None:
         """Close the window (Exit menu item)."""
         log.info("File | Exit -> closing main window.")
@@ -288,10 +297,6 @@ class MainWindow(QMainWindow):
     def stub_edit_paste(self) -> None:
         """Edit > Paste on the active editor."""
         self._delegate_to_editor("paste", "Edit | Paste")
-
-    def stub_edit_find(self) -> None:
-        """Edit > Find — placeholder until a find dialog ships."""
-        self.log_not_implemented("Edit | Find")
 
     def stub_view_show_hidden(self, checked: bool = False) -> None:
         """Toggle display of hidden files in the project tree."""
@@ -340,40 +345,24 @@ class MainWindow(QMainWindow):
         self.log_not_implemented("REPL | Restart")
 
     def stub_repl_connect(self) -> None:
-        """Stub for REPL > Connect External."""
-        self.log_not_implemented("REPL | Connect External")
+        """REPL > Connect External — open the connection dialog."""
+        main_window_repl.open_connect_dialog(self)
+
+    def stub_repl_disconnect(self) -> None:
+        """REPL > Disconnect — close the current nREPL connection."""
+        main_window_repl.disconnect(self)
 
     def stub_eval_form(self) -> None:
-        """Stub for REPL > Eval Form."""
-        self.log_not_implemented("REPL | Eval Form")
+        """REPL > Eval Form — evaluate the form under the cursor."""
+        main_window_repl.eval_form_at_cursor(self)
 
     def stub_eval_selection(self) -> None:
-        """Stub for REPL > Eval Selection."""
-        self.log_not_implemented("REPL | Eval Selection")
+        """REPL > Eval Selection — evaluate the active editor's selection."""
+        main_window_repl.eval_selection(self)
 
     def stub_eval_file(self) -> None:
-        """Stub for REPL > Eval File."""
-        self.log_not_implemented("REPL | Eval File")
-
-    def stub_repl_reload_ns(self) -> None:
-        """Stub for REPL > Reload Namespace."""
-        self.log_not_implemented("REPL | Reload Namespace")
-
-    def stub_repl_switch_ns(self) -> None:
-        """Stub for REPL > Switch Namespace."""
-        self.log_not_implemented("REPL | Switch Namespace")
-
-    def stub_help_about(self) -> None:
-        """Stub for Help > About."""
-        self.log_not_implemented("Help | About CLIDE")
-
-    def stub_help_shortcuts(self) -> None:
-        """Stub for Help > Shortcuts."""
-        self.log_not_implemented("Help | Shortcuts")
-
-    def stub_help_report_issue(self) -> None:
-        """Stub for Help > Report Issue."""
-        self.log_not_implemented("Help | Report Issue")
+        """REPL > Eval File — load-file the active editor's buffer."""
+        main_window_repl.eval_current_file(self)
 
 
 def _placeholder(label: str, object_name: str = "") -> QLabel:

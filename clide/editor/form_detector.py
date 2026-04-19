@@ -13,6 +13,8 @@ content out of the bracket count.
 
 from __future__ import annotations
 
+import re
+
 CODE = 0
 STRING = 1
 COMMENT = 2
@@ -128,3 +130,58 @@ def top_level_form_at(text: str, pos: int) -> tuple[int, int] | None:
 def _pos_in_range(text: str, pos: int) -> bool:
     """Return True if ``pos`` is a valid cursor index for ``text``."""
     return 0 <= pos <= len(text)
+
+
+_NS_OPEN_RE = re.compile(r"\(\s*ns\s")
+_NAME_STOP = set(" \t\r\n()[]{}\"',;")
+
+
+def detect_file_namespace(text: str) -> str | None:
+    """Return the name from the first top-level ``(ns ...)`` form, if any.
+
+    Tolerates optional ``^meta`` forms between ``ns`` and the name
+    (e.g. ``(ns ^:doc my.ns)``). Ignores ``(ns ...)`` occurrences found
+    inside strings or comments via the classifier.
+    """
+    classes = classify(text)
+    n = len(text)
+    for match in _NS_OPEN_RE.finditer(text):
+        if classes[match.start()] != CODE:
+            continue
+        i = match.end()
+        while i < n:
+            ch = text[i]
+            if ch.isspace():
+                i += 1
+                continue
+            if ch == "^":
+                i = _skip_metadata(text, i + 1)
+                continue
+            if ch in "()[]{}\"',;":
+                break
+            start = i
+            while i < n and text[i] not in _NAME_STOP:
+                i += 1
+            name = text[start:i]
+            return name or None
+    return None
+
+
+def _skip_metadata(text: str, i: int) -> int:
+    """Skip past a ``^``-prefixed metadata form; return index after it."""
+    n = len(text)
+    if i >= n:
+        return i
+    if text[i] == "{":
+        depth = 1
+        i += 1
+        while i < n and depth > 0:
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+            i += 1
+        return i
+    while i < n and text[i] not in _NAME_STOP:
+        i += 1
+    return i
