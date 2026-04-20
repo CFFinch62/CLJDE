@@ -30,6 +30,7 @@ class TabManager(QTabWidget):
     current_file_changed_signal = pyqtSignal(object)   # str | None
     file_modified_signal = pyqtSignal(str, bool)
     cursor_position_changed_signal = pyqtSignal(int, int)
+    editor_notice_signal = pyqtSignal(str)
 
     def __init__(
         self,
@@ -141,6 +142,13 @@ class TabManager(QTabWidget):
                     out.append(path)
         return out
 
+    def set_rainbow_parens_all(self, enabled: bool) -> None:
+        """Toggle rainbow-parens shading on every open editor tab."""
+        for i in range(self.count()):
+            editor = self.widget(i)
+            if isinstance(editor, EditorWidget):
+                editor.set_rainbow_parens(enabled)
+
     def open_tabs_state(self) -> list[dict]:
         """Return a serialisable snapshot of open (saved) tabs for session restore."""
         state: list[dict] = []
@@ -165,6 +173,7 @@ class TabManager(QTabWidget):
         editor.document().modificationChanged.connect(
             lambda modified, e=editor: self._on_modification_changed(e, modified),
         )
+        editor.notice_signal.connect(self.editor_notice_signal)
         return editor
 
     def _write_editor(self, editor: EditorWidget, path: str) -> bool:

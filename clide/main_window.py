@@ -13,14 +13,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QCloseEvent
-from PyQt6.QtWidgets import (
-    QDockWidget,
-    QLabel,
-    QMainWindow,
-    QMenu,
-    QToolBar,
-    QWidget,
-)
+from PyQt6.QtWidgets import QDockWidget, QMainWindow, QMenu, QToolBar, QWidget
 
 from clide import __version__
 from clide.config.settings import Settings
@@ -28,6 +21,7 @@ from clide.editor.editor_widget import EditorWidget
 from clide.files import file_ops
 from clide.files.file_tree import FileTreeWidget
 from clide.files.tab_manager import TabManager
+from clide.namespace.ns_browser import NsBrowser
 from clide.repl.process_manager import ReplProcessManager
 from clide.repl.repl_pane import ReplPane
 from clide.ui import main_window_repl
@@ -96,6 +90,9 @@ class MainWindow(QMainWindow):
             self._status_bar.set_cursor_position,
         )
         self._tabs.current_file_changed_signal.connect(self._on_current_file_changed)
+        self._tabs.editor_notice_signal.connect(
+            lambda msg: self._status_bar.show_transient(msg, 2500),
+        )
         self._tree.file_requested_signal.connect(
             lambda p: file_ops.open_file(self._tabs, p),
         )
@@ -105,6 +102,7 @@ class MainWindow(QMainWindow):
         self._repl_pane.ns_changed_signal.connect(
             lambda ns: main_window_repl.on_ns_changed(self, ns),
         )
+        main_window_repl.wire_ns_browser(self)
 
     def tab_manager(self) -> TabManager:
         """Return the central tab manager."""
@@ -130,6 +128,10 @@ class MainWindow(QMainWindow):
         """Return the :class:`ReplProcessManager` supervising the nREPL process."""
         return self._process_manager
 
+    def ns_browser(self) -> NsBrowser:
+        """Return the docked namespace browser widget."""
+        return self._ns_browser
+
     def _build_docks(self) -> None:
         """Create the left/right/bottom dock widgets."""
         self._tree = FileTreeWidget(self)
@@ -137,9 +139,8 @@ class MainWindow(QMainWindow):
         self._tree_dock.setMinimumWidth(LEFT_DOCK_WIDTH // 2)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._tree_dock)
 
-        self._ns_dock = _dock(
-            "Namespaces", "namespacesDock", _placeholder("Namespaces", "nsPlaceholder"),
-        )
+        self._ns_browser = NsBrowser(self._client, self)
+        self._ns_dock = _dock("Namespaces", "namespacesDock", self._ns_browser)
         self._ns_dock.setMinimumWidth(RIGHT_DOCK_WIDTH // 2)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._ns_dock)
 
@@ -279,7 +280,6 @@ class MainWindow(QMainWindow):
 
     def stub_file_exit(self) -> None:
         """Close the window (Exit menu item)."""
-        log.info("File | Exit -> closing main window.")
         self.close()
 
     def _delegate_to_editor(self, method: str, path: str) -> None:
@@ -314,27 +314,23 @@ class MainWindow(QMainWindow):
         """Toggle display of hidden files in the project tree."""
         self._tree.set_show_hidden(checked)
         self._settings.set("files", "show_hidden", bool(checked))
-        log.info("View | Show Hidden Files -> %s", checked)
 
     def stub_view_toggle_tree(self, checked: bool = True) -> None:
         """Toggle the visibility of the file tree dock."""
         self._tree_dock.setVisible(checked)
-        log.info("View | Toggle File Tree -> %s", checked)
 
     def stub_view_toggle_repl(self, checked: bool = True) -> None:
         """Toggle the visibility of the REPL dock."""
         self._repl_dock.setVisible(checked)
-        log.info("View | Toggle REPL -> %s", checked)
 
     def stub_view_toggle_namespaces(self, checked: bool = True) -> None:
         """Toggle the visibility of the namespace browser dock."""
         self._ns_dock.setVisible(checked)
-        log.info("View | Toggle Namespaces -> %s", checked)
 
     def stub_view_rainbow_parens(self, checked: bool = False) -> None:
-        """Stub for View > Rainbow Parens (persisted to settings)."""
+        """Toggle rainbow-parens shading on every open editor tab."""
         self._settings.set("editor", "rainbow_parens", bool(checked))
-        self.log_not_implemented(f"View | Rainbow Parens ({checked})")
+        self._tabs.set_rainbow_parens_all(bool(checked))
 
     def stub_view_full_screen(self, checked: bool = False) -> None:
         """Toggle full-screen mode on the main window."""
@@ -342,7 +338,6 @@ class MainWindow(QMainWindow):
             self.showFullScreen()
         else:
             self.showNormal()
-        log.info("View | Full Screen -> %s", checked)
 
     def stub_repl_start(self) -> None:
         """REPL > Start — spawn an nREPL for the current project and auto-connect."""
@@ -376,25 +371,28 @@ class MainWindow(QMainWindow):
         """REPL > Eval File — load-file the active editor's buffer."""
         main_window_repl.eval_current_file(self)
 
+    def stub_repl_reload_current_ns(self) -> None:
+        """REPL > Reload Current NS — require :reload the active file's ns."""
+        main_window_repl.reload_current_ns(self)
 
-def _placeholder(label: str, object_name: str = "") -> QLabel:
-    """Create a centred placeholder label used as a panel stand-in."""
-    lbl = QLabel(label)
-    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    lbl.setObjectName(object_name or f"placeholder_{label}")
-    lbl.setStyleSheet("font-size: 14pt; color: #a0a0a0;")
-    lbl.setMinimumSize(120, 80)
-    return lbl
+    def stub_repl_switch_to_file_ns(self) -> None:
+        """REPL > Switch to File NS — in-ns to the active file's namespace."""
+        main_window_repl.switch_to_file_ns(self)
+
+    def stub_repl_reload_all_changed(self) -> None:
+        """REPL > Reload All Changed NS — clojure.tools.namespace/refresh."""
+        main_window_repl.reload_all_changed(self)
+
+    def stub_file_goto_namespace(self) -> None:
+        """File > Go to Namespace... — fuzzy-select and switch REPL ns."""
+        main_window_repl.goto_namespace(self)
 
 
 def _dock(title: str, object_name: str, widget: QWidget) -> QDockWidget:
     """Create a configured dock widget wrapping ``widget``."""
+    features = QDockWidget.DockWidgetFeature
     dock = QDockWidget(title)
     dock.setObjectName(object_name)
-    dock.setFeatures(
-        QDockWidget.DockWidgetFeature.DockWidgetMovable
-        | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        | QDockWidget.DockWidgetFeature.DockWidgetClosable
-    )
+    dock.setFeatures(features.DockWidgetMovable | features.DockWidgetFloatable | features.DockWidgetClosable)
     dock.setWidget(widget)
     return dock

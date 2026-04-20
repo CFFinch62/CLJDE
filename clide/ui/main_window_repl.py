@@ -16,11 +16,13 @@ from typing import TYPE_CHECKING
 from PyQt6.QtWidgets import QApplication
 
 from clide.editor import form_detector
+from clide.namespace import ns_operations
 from clide.nrepl.client import NreplClient
 from clide.nrepl.session import SessionManager
 from clide.repl.repl_pane import ReplPane
 from clide.ui import toolbar as toolbar_mod
 from clide.ui.connect_dialog import ConnectDialog
+from clide.ui.fuzzy_ns_dialog import FuzzyNsDialog
 
 if TYPE_CHECKING:
     from clide.main_window import MainWindow
@@ -267,3 +269,104 @@ def _notice(window: "MainWindow", message: str, *, beep: bool = False) -> None:
         QApplication.beep()
     window.status_bar().show_transient(message, 2000)
     window.repl_pane().output_view().append_info(message)
+
+
+
+# ----------------------------------------------------- namespace operations
+
+def wire_ns_browser(window: "MainWindow") -> None:
+    """Connect the :class:`NsBrowser` to the nREPL client and REPL pane."""
+    browser = window.ns_browser()
+    client = window.repl_pane().client()
+    client.session_cloned_signal.connect(lambda _s: browser.refresh())
+    window.repl_pane().ns_changed_signal.connect(browser.set_current_ns)
+    browser.switch_ns_signal.connect(lambda ns: _switch_via_browser(window, ns))
+    browser.reload_ns_signal.connect(lambda ns: _reload_via_browser(window, ns))
+    browser.remove_ns_signal.connect(
+        lambda ns: _remove_and_refresh(window, ns),
+    )
+
+
+def _switch_via_browser(window: "MainWindow", ns_name: str) -> None:
+    """Send ``(in-ns 'NS)`` from a browser double-click with visible feedback."""
+    client = window.repl_pane().client()
+    if ns_operations.switch_ns(client, ns_name) is None:
+        _notice(window, "REPL not connected", beep=True)
+        return
+    window.repl_pane().output_view().append_info(f"Switching to {ns_name}...")
+
+
+def _reload_via_browser(window: "MainWindow", ns_name: str) -> None:
+    """Send ``(require 'NS :reload)`` from a browser menu with feedback."""
+    client = window.repl_pane().client()
+    if ns_operations.reload_ns(client, ns_name) is None:
+        _notice(window, "REPL not connected", beep=True)
+        return
+    window.repl_pane().output_view().append_info(f"Reloading {ns_name}...")
+
+
+def _remove_and_refresh(window: "MainWindow", ns_name: str) -> None:
+    """Send ``(remove-ns ...)`` and repopulate the browser afterwards."""
+    client = window.repl_pane().client()
+    ns_operations.remove_ns(client, ns_name)
+    window.ns_browser().refresh()
+
+
+def reload_current_ns(window: "MainWindow") -> None:
+    """Issue ``(require '<file-ns> :reload)`` for the active editor's namespace."""
+    ns_name = _current_file_ns(window)
+    if ns_name is None:
+        _notice(window, "No namespace in current file", beep=True)
+        return
+    client = window.repl_pane().client()
+    if ns_operations.reload_ns(client, ns_name) is None:
+        _notice(window, "REPL not connected", beep=True)
+        return
+    window.repl_pane().output_view().append_info(f"Reloading {ns_name}...")
+
+
+def switch_to_file_ns(window: "MainWindow") -> None:
+    """Switch the REPL to the active editor's file namespace."""
+    ns_name = _current_file_ns(window)
+    if ns_name is None:
+        _notice(window, "No namespace in current file", beep=True)
+        return
+    client = window.repl_pane().client()
+    if ns_operations.switch_ns(client, ns_name) is None:
+        _notice(window, "REPL not connected", beep=True)
+        return
+    window.repl_pane().output_view().append_info(f"Switching to {ns_name}...")
+
+
+def reload_all_changed(window: "MainWindow") -> None:
+    """Invoke ``clojure.tools.namespace.repl/refresh`` in the REPL."""
+    client = window.repl_pane().client()
+    if ns_operations.reload_all_changed(client) is None:
+        _notice(window, "REPL not connected", beep=True)
+        return
+    window.repl_pane().output_view().append_info("Reloading changed namespaces...")
+
+
+def goto_namespace(window: "MainWindow") -> None:
+    """Prompt for a namespace via fuzzy dialog and switch the REPL to it."""
+    browser = window.ns_browser()
+    names = browser.all_namespaces()
+    if not names:
+        _notice(window, "No namespaces loaded", beep=True)
+        return
+    chosen = FuzzyNsDialog.prompt(names, browser.current_ns(), window)
+    if chosen is None:
+        return
+    client = window.repl_pane().client()
+    if ns_operations.switch_ns(client, chosen) is None:
+        _notice(window, "REPL not connected", beep=True)
+        return
+    window.repl_pane().output_view().append_info(f"Switching to {chosen}...")
+
+
+def _current_file_ns(window: "MainWindow") -> str | None:
+    """Return the namespace of the active editor's text, or ``None``."""
+    editor = window.editor()
+    if editor is None:
+        return None
+    return form_detector.detect_file_namespace(editor.get_text())

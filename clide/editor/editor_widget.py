@@ -1,22 +1,16 @@
 """CLIDE source-editor widget.
 
-Extends :class:`PyQt6.QtWidgets.QPlainTextEdit` with:
-  * a line-number gutter (painted via :class:`LineNumberArea`),
-  * a current-line background highlight,
-  * paren-match highlighting via :mod:`clide.editor.paren_matcher`,
-  * Clojure syntax highlighting via :class:`ClojureHighlighter`,
-  * Tab/Shift-Tab converted to ``tab_width`` spaces (default 2),
-  * ``cursor_position_changed_signal(line, column)`` emitted on every
-    cursor move, intended for wiring to the main status bar.
-
-The widget accepts an optional :class:`Settings` instance; when
-provided, font family/size and tab width are read from the
-``editor`` section so user preferences take effect on construction.
+Extends :class:`QPlainTextEdit` with a line-number gutter, current-line
+and paren-match highlighting, Clojure syntax highlighting, debounced
+balance checking (red wavy underlines), structural edits
+(slurp/barf/wrap/unwrap), rainbow-parens toggle, and space-based
+indent. Accepts an optional :class:`Settings` so font, tab width, and
+rainbow state can be read at construction.
 """
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
     QFont,
@@ -24,14 +18,15 @@ from PyQt6.QtGui import (
     QPainter,
     QPaintEvent,
     QResizeEvent,
+    QTextCharFormat,
     QTextCursor,
     QTextFormat,
 )
-from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
+from PyQt6.QtWidgets import QApplication, QPlainTextEdit, QTextEdit, QWidget
 
 from clide.config.settings import Settings
 from clide.config.theme import DEFAULT_PALETTE
-from clide.editor import paren_matcher
+from clide.editor import balance_checker, paren_matcher, structural_edit
 from clide.editor.clojure_highlighter import ClojureHighlighter
 from clide.editor.line_numbers import LineNumberArea
 
@@ -39,12 +34,18 @@ DEFAULT_FONT_FAMILY = "monospace"
 DEFAULT_FONT_SIZE = 11
 DEFAULT_TAB_WIDTH = 2
 GUTTER_PADDING_PX = 12
+BALANCE_CHECK_INTERVAL_MS = 500
+
+_BRACKET_PAIRS = {"(": ")", "[": "]", "{": "}"}
+_M = Qt.KeyboardModifier
+_CHORD_MASK = _M.ShiftModifier | _M.ControlModifier | _M.AltModifier | _M.MetaModifier
 
 
 class EditorWidget(QPlainTextEdit):
     """Clojure source editor with line numbers, paren match, and highlighting."""
 
     cursor_position_changed_signal = pyqtSignal(int, int)
+    notice_signal = pyqtSignal(str)
 
     def __init__(
         self,
@@ -56,17 +57,26 @@ class EditorWidget(QPlainTextEdit):
         self._file_path: str | None = None
         self._line_number_area = LineNumberArea(self)
         self._highlighter = ClojureHighlighter(self.document())
+        self._balance_selections: list[QTextEdit.ExtraSelection] = []
+        self._wrap_pending = False
 
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setFrameStyle(0)
+
+        self._balance_timer = QTimer(self)
+        self._balance_timer.setSingleShot(True)
+        self._balance_timer.setInterval(BALANCE_CHECK_INTERVAL_MS)
+        self._balance_timer.timeout.connect(self._run_balance_check)
 
         self.blockCountChanged.connect(self._update_gutter_width)
         self.updateRequest.connect(self._on_update_request)
         self.cursorPositionChanged.connect(self._emit_cursor_position)
         self.cursorPositionChanged.connect(self._refresh_extra_selections)
         self.textChanged.connect(self._refresh_extra_selections)
+        self.textChanged.connect(self._balance_timer.start)
 
         self._apply_font_from_settings()
+        self._apply_rainbow_from_settings()
         self._update_gutter_width()
         self._refresh_extra_selections()
         self._emit_cursor_position()
@@ -110,6 +120,45 @@ class EditorWidget(QPlainTextEdit):
         cursor = self.textCursor()
         cursor.setPosition(block.position() + col)
         self.setTextCursor(cursor)
+
+    def set_rainbow_parens(self, enabled: bool) -> None:
+        """Toggle rainbow-parens shading on the embedded highlighter."""
+        self._highlighter.set_rainbow(enabled)
+
+    # ------------------------------------------------------ structural edits
+
+    def slurp_forward(self) -> None:
+        """Extend the innermost form at the cursor to swallow its next sibling."""
+        self._run_structural(structural_edit.slurp_forward, "Nothing to slurp")
+
+    def barf_forward(self) -> None:
+        """Eject the last child of the innermost form at the cursor."""
+        self._run_structural(structural_edit.barf_forward, "Nothing to barf")
+
+    def wrap_form(self, open_char: str) -> None:
+        """Wrap the current selection (or innermost form) with ``open_char``."""
+        close_char = _BRACKET_PAIRS.get(open_char)
+        if close_char is None:
+            return
+        text = self.toPlainText()
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            result = structural_edit.wrap_range(
+                text, cursor.selectionStart(), cursor.selectionEnd(),
+                open_char, close_char,
+            )
+        else:
+            result = structural_edit.wrap_form(
+                text, cursor.position(), open_char, close_char,
+            )
+        if result is None:
+            self._notify_failure("Nothing to wrap")
+            return
+        self._apply_structural_edit(*result)
+
+    def unwrap_form(self) -> None:
+        """Replace the innermost form at the cursor with its contents."""
+        self._run_structural(structural_edit.unwrap_form, "Nothing to unwrap")
 
     # --------------------------------------------------------- gutter support
 
@@ -157,12 +206,36 @@ class EditorWidget(QPlainTextEdit):
         )
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 (Qt override)
-        """Convert Tab/Shift-Tab into space-based indent operations."""
-        mods = event.modifiers()
-        if event.key() == Qt.Key.Key_Tab and mods == Qt.KeyboardModifier.NoModifier:
+        """Handle structural-edit chords and space-based indent operations."""
+        key = event.key()
+        chord = event.modifiers() & _CHORD_MASK
+        alt = Qt.KeyboardModifier.AltModifier
+        alt_shift = alt | Qt.KeyboardModifier.ShiftModifier
+
+        if self._wrap_pending:
+            self._wrap_pending = False
+            text_pressed = event.text()
+            if text_pressed in _BRACKET_PAIRS:
+                self.wrap_form(text_pressed)
+                return
+
+        if chord == alt_shift and key == Qt.Key.Key_Right:
+            self.slurp_forward()
+            return
+        if chord == alt_shift and key == Qt.Key.Key_Left:
+            self.barf_forward()
+            return
+        if chord == alt and key == Qt.Key.Key_W:
+            self._wrap_pending = True
+            self.notice_signal.emit("Wrap with ( [ or {")
+            return
+        if chord == alt and key == Qt.Key.Key_U:
+            self.unwrap_form()
+            return
+        if key == Qt.Key.Key_Tab and chord == Qt.KeyboardModifier.NoModifier:
             self._insert_spaces()
             return
-        if event.key() == Qt.Key.Key_Backtab:
+        if key == Qt.Key.Key_Backtab:
             self._outdent_line()
             return
         super().keyPressEvent(event)
@@ -206,11 +279,63 @@ class EditorWidget(QPlainTextEdit):
         )
 
     def _refresh_extra_selections(self) -> None:
-        """Rebuild the current-line and paren-match extra selections."""
+        """Rebuild the current-line, paren-match, and balance-error selections."""
         selections: list[QTextEdit.ExtraSelection] = []
         selections.append(self._current_line_selection())
         selections.extend(self._paren_match_selections())
+        selections.extend(self._balance_selections)
         self.setExtraSelections(selections)
+
+    def _apply_rainbow_from_settings(self) -> None:
+        """Apply the initial rainbow-parens flag from settings, if present."""
+        if self._settings is None:
+            return
+        enabled = bool(self._settings.get("editor", "rainbow_parens", False))
+        self._highlighter.set_rainbow(enabled)
+
+    def _run_balance_check(self) -> None:
+        """Recompute balance underlines and refresh the extra-selection list."""
+        errors = balance_checker.check_balance(self.toPlainText())
+        self._balance_selections = [self._balance_selection(err.pos) for err in errors]
+        self._refresh_extra_selections()
+
+    def _balance_selection(self, index: int) -> QTextEdit.ExtraSelection:
+        """Build a red wavy-underline selection at ``index``."""
+        sel = QTextEdit.ExtraSelection()
+        fmt = QTextCharFormat()
+        fmt.setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
+        fmt.setUnderlineColor(QColor(DEFAULT_PALETTE.error_red))
+        sel.format = fmt
+        cursor = self.textCursor()
+        cursor.setPosition(index)
+        cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, 1)
+        sel.cursor = cursor
+        return sel
+
+    def _run_structural(self, op, failure_message: str) -> None:
+        """Invoke ``op(text, pos)`` and apply the result, or beep on failure."""
+        text = self.toPlainText()
+        pos = self.textCursor().position()
+        result = op(text, pos)
+        if result is None:
+            self._notify_failure(failure_message)
+            return
+        self._apply_structural_edit(*result)
+
+    def _apply_structural_edit(self, new_text: str, new_pos: int) -> None:
+        """Replace the document with ``new_text`` in one undoable transaction."""
+        cursor = self.textCursor()
+        cursor.beginEditBlock()
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.insertText(new_text)
+        cursor.setPosition(max(0, min(new_pos, len(new_text))))
+        cursor.endEditBlock()
+        self.setTextCursor(cursor)
+
+    def _notify_failure(self, message: str) -> None:
+        """Beep and emit a notice for failed structural edits."""
+        QApplication.beep()
+        self.notice_signal.emit(message)
 
     def _current_line_selection(self) -> QTextEdit.ExtraSelection:
         """Build the subtle current-line background highlight."""
@@ -239,11 +364,7 @@ class EditorWidget(QPlainTextEdit):
         sel.format.setForeground(QColor(DEFAULT_PALETTE.background_dark))
         cursor = self.textCursor()
         cursor.setPosition(index)
-        cursor.movePosition(
-            QTextCursor.MoveOperation.Right,
-            QTextCursor.MoveMode.KeepAnchor,
-            1,
-        )
+        cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, 1)
         sel.cursor = cursor
         return sel
 

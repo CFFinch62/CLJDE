@@ -73,6 +73,10 @@ class ReplPane(QWidget):
         """Return the :class:`InputLine` so callers can steal focus."""
         return self._input
 
+    def client(self) -> NreplClient:
+        """Return the shared nREPL client driving this pane."""
+        return self._client
+
     def current_ns(self) -> str:
         """Return the namespace currently tracked for the default session."""
         session_id = self._client.default_session()

@@ -21,11 +21,14 @@ from __future__ import annotations
 from PyQt6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTextDocument
 
 from clide.config.theme import DEFAULT_PALETTE
+from clide.editor.rainbow_parens import build_rainbow_formats, format_for_depth
 
 STATE_NORMAL = 0
 STATE_IN_STRING = 1
 
 _SYMBOL_EXTRA = set("*+!-_?./<>=&%$'")
+_OPEN_BRACKETS = "([{"
+_CLOSE_BRACKETS = ")]}"
 
 
 def _is_symbol_start(c: str) -> bool:
@@ -84,12 +87,26 @@ class ClojureHighlighter(QSyntaxHighlighter):
     def __init__(self, document: QTextDocument) -> None:
         super().__init__(document)
         self._formats = _build_formats()
+        self._rainbow_formats = build_rainbow_formats()
+        self._rainbow_enabled = False
+
+    def set_rainbow(self, enabled: bool) -> None:
+        """Enable/disable rainbow-parens shading and rehighlight the document."""
+        if self._rainbow_enabled == enabled:
+            return
+        self._rainbow_enabled = enabled
+        self.rehighlight()
 
     def highlightBlock(self, text: str) -> None:  # noqa: N802 (Qt override)
         """Apply formatting to a single logical text block (line)."""
         n = len(text)
         i = 0
-        state = STATE_NORMAL if self.previousBlockState() < 0 else self.previousBlockState()
+        prev = self.previousBlockState()
+        if prev < 0:
+            prev = 0
+        in_string = prev & 1
+        depth = prev >> 1
+        state = STATE_IN_STRING if in_string else STATE_NORMAL
 
         if state == STATE_IN_STRING:
             end, finished = self._consume_string_body(text, 0)
@@ -97,7 +114,7 @@ class ClojureHighlighter(QSyntaxHighlighter):
             i = end
             state = STATE_NORMAL if finished else STATE_IN_STRING
             if state == STATE_IN_STRING:
-                self.setCurrentBlockState(STATE_IN_STRING)
+                self.setCurrentBlockState((depth << 1) | 1)
                 return
 
         while i < n:
@@ -129,6 +146,18 @@ class ClojureHighlighter(QSyntaxHighlighter):
             if c == "^":
                 i = self._paint_metadata(text, i)
                 continue
+            if c in _OPEN_BRACKETS:
+                if self._rainbow_enabled:
+                    self.setFormat(i, 1, format_for_depth(self._rainbow_formats, depth))
+                depth += 1
+                i += 1
+                continue
+            if c in _CLOSE_BRACKETS:
+                depth = max(0, depth - 1)
+                if self._rainbow_enabled:
+                    self.setFormat(i, 1, format_for_depth(self._rainbow_formats, depth))
+                i += 1
+                continue
             if c.isdigit() or (c in "+-" and i + 1 < n and text[i + 1].isdigit()):
                 i = self._paint_number(text, i)
                 continue
@@ -137,7 +166,8 @@ class ClojureHighlighter(QSyntaxHighlighter):
                 continue
             i += 1
 
-        self.setCurrentBlockState(state)
+        encoded = (depth << 1) | (1 if state == STATE_IN_STRING else 0)
+        self.setCurrentBlockState(encoded)
 
     # ---------------------------------------------------- token sub-scanners
 

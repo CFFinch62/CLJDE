@@ -158,8 +158,8 @@ class NreplClient(QObject):
         if isinstance(new_session, str) and new_session:
             self._default_session = new_session
             log.info("nREPL default session cloned: %s", new_session)
-            self.session_cloned_signal.emit(new_session)
             self._set_state("connected")
+            self.session_cloned_signal.emit(new_session)
 
     def _set_state(self, state: ConnectionState) -> None:
         if state == self._state:

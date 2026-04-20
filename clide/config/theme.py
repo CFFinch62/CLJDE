@@ -31,6 +31,19 @@ class Palette:
         """Return the palette as an ordinary dictionary."""
         return asdict(self)
 
+    @property
+    def rainbow_cycle(self) -> tuple[str, ...]:
+        """Return the ~7-colour cycle used by rainbow-parens depth shading."""
+        return (
+            self.amber_primary,
+            self.blue_primary,
+            self.amber_bright,
+            self.blue_bright,
+            self.success_green,
+            "#c586c0",
+            self.foreground,
+        )
+
 
 DEFAULT_PALETTE = Palette()
 

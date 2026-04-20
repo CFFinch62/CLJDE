@@ -33,6 +33,7 @@ FILE_MENU: list[MenuEntry] = [
     ("Save As...",    "Ctrl+Shift+S",  "stub_file_save_as",      False),
     (None, None, None, False),
     ("Recent Files",  None,            "stub_file_recent",       False),
+    ("Go to Namespace...", "Ctrl+Shift+N", "stub_file_goto_namespace", False),
     (None, None, None, False),
     ("Exit",          "Ctrl+Q",        "stub_file_exit",         False),
 ]
@@ -70,8 +71,9 @@ REPL_MENU: list[MenuEntry] = [
     ("Eval Selection",   "Ctrl+Shift+Return","stub_eval_selection",  False),
     ("Eval File",        "Ctrl+Alt+Return",  "stub_eval_file",       False),
     (None, None, None, False),
-    ("Reload Namespace", None,               "stub_repl_reload_ns",  False),
-    ("Switch Namespace...", "Ctrl+Shift+N",  "stub_repl_switch_ns",  False),
+    ("Reload Current NS",     "Ctrl+R",         "stub_repl_reload_current_ns",  False),
+    ("Switch to File NS",     "Ctrl+Shift+R",   "stub_repl_switch_to_file_ns",  False),
+    ("Reload All Changed NS", "Ctrl+Shift+F5",  "stub_repl_reload_all_changed", False),
 ]
 
 HELP_MENU: list[MenuEntry] = [
