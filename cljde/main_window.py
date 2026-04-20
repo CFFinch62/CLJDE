@@ -231,9 +231,7 @@ class MainWindow(QMainWindow):
             return
         menu = QMenu("Recent Files", self)
         action.setMenu(menu)
-        menu.aboutToShow.connect(
-            lambda: file_ops.populate_recent_menu(menu, self._settings, self._tabs),
-        )
+        menu.aboutToShow.connect(lambda: file_ops.populate_recent_menu(menu, self._settings, self._tabs))
 
     def _apply_show_hidden_from_settings(self) -> None:
         """Sync the View > Show Hidden toggle with the file tree."""
@@ -381,6 +379,11 @@ class MainWindow(QMainWindow):
         """Help > Quick Reference — open the Clojure and CLJDE cheat sheet."""
         from cljde.ui.quick_reference_dialog import QuickReferenceDialog
         QuickReferenceDialog.show_for(self)
+
+    def stub_help_about(self) -> None:
+        """Help > About — show version, Python, and Qt runtime info."""
+        from cljde.ui.help_dialogs import show_about
+        show_about(self)
 
 
 def _dock(title: str, object_name: str, widget: QWidget) -> QDockWidget:

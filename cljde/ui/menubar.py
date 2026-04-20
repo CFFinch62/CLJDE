@@ -79,8 +79,6 @@ REPL_MENU: list[MenuEntry] = [
 HELP_MENU: list[MenuEntry] = [
     ("About CLJDE",    None, "stub_help_about",    False),
     ("Quick Reference", "F1", "stub_help_quick_reference", False),
-    (None, None, None, False),
-    ("Report Issue...", None, "stub_help_report_issue", False),
 ]
 
 MENU_LAYOUT: list[tuple[str, list[MenuEntry]]] = [
