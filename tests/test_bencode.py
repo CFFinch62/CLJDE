@@ -1,4 +1,4 @@
-"""Tests for :mod:`clide.nrepl.bencode`.
+"""Tests for :mod:`cljde.nrepl.bencode`.
 
 Exercises the four bencode types, round-trip semantics, streaming-style
 partial reads, dictionary key sorting, and the full catalogue of
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from clide.nrepl.bencode import BencodeError, decode, decode_all, encode
+from cljde.nrepl.bencode import BencodeError, decode, decode_all, encode
 
 
 # --------------------------------------------------------------- encode/decode

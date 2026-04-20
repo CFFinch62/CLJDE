@@ -1,4 +1,4 @@
-"""Tests for :mod:`clide.editor.balance_checker`.
+"""Tests for :mod:`cljde.editor.balance_checker`.
 
 Covers unmatched opens, unmatched closes, bracket-kind mismatches, and
 the classifier interactions that keep bracket characters inside strings
@@ -7,7 +7,7 @@ and line comments from being reported.
 
 from __future__ import annotations
 
-from clide.editor.balance_checker import (
+from cljde.editor.balance_checker import (
     KIND_MISMATCH,
     KIND_UNMATCHED_CLOSE,
     KIND_UNMATCHED_OPEN,

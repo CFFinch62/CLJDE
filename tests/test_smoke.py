@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from clide import __version__
-from clide.config import paths, settings, theme
+from cljde import __version__
+from cljde.config import paths, settings, theme
 
 
 def test_version_is_nonempty() -> None:

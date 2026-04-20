@@ -1,4 +1,4 @@
-"""Unit tests for :func:`clide.ui.main_window_repl.refresh_repl_ui`.
+"""Unit tests for :func:`cljde.ui.main_window_repl.refresh_repl_ui`.
 
 Exercises the button-state truth table across process states and project
 kinds using a real :class:`QToolBar` with named :class:`QAction` entries
@@ -17,7 +17,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PyQt6.QtWidgets import QApplication, QToolBar
 
-from clide.ui import main_window_repl, toolbar as toolbar_mod
+from cljde.ui import main_window_repl, toolbar as toolbar_mod
 
 
 @pytest.fixture(scope="module")

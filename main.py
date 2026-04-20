@@ -1,8 +1,8 @@
-"""CLIDE launcher script.
+"""CLJDE launcher script.
 
 Run with ``python main.py`` from the repository root. Initialises
 logging (rotating file + console) before instantiating Qt so that any
-startup errors are captured in ``clide.log`` inside the per-user config
+startup errors are captured in ``cljde.log`` inside the per-user config
 directory.
 """
 
@@ -12,9 +12,9 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 
-from clide import __version__
-from clide.app import run
-from clide.config.paths import ensure_config_dir, log_path
+from cljde import __version__
+from cljde.app import run
+from cljde.config.paths import ensure_config_dir, log_path
 
 LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
 LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
@@ -49,18 +49,18 @@ def configure_logging() -> None:
 
 
 def main() -> int:
-    """Script entry point: configure logging, launch CLIDE, return rc."""
+    """Script entry point: configure logging, launch CLJDE, return rc."""
     configure_logging()
-    log = logging.getLogger("clide.main")
-    log.info("--- CLIDE %s launching ---", __version__)
+    log = logging.getLogger("cljde.main")
+    log.info("--- CLJDE %s launching ---", __version__)
     log.info("Log file: %s", log_path())
     try:
         return run(sys.argv)
     except Exception:
-        log.exception("Fatal error during CLIDE startup.")
+        log.exception("Fatal error during CLJDE startup.")
         return 1
     finally:
-        log.info("--- CLIDE shutdown ---")
+        log.info("--- CLJDE shutdown ---")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Tests for :func:`clide.ui.fuzzy_ns_dialog.fuzzy_score`.
+"""Tests for :func:`cljde.ui.fuzzy_ns_dialog.fuzzy_score`.
 
 The scoring is a subsequence match with a streak bonus. These tests
 verify the rejection path, empty-query behaviour, and the ordering that
@@ -7,7 +7,7 @@ the dialog relies on to keep `str` -> `clojure.string` near the top.
 
 from __future__ import annotations
 
-from clide.ui.fuzzy_ns_dialog import fuzzy_score
+from cljde.ui.fuzzy_ns_dialog import fuzzy_score
 
 
 def test_empty_query_scores_zero() -> None:

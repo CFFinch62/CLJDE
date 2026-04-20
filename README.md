@@ -1,4 +1,6 @@
-# CLIDE
+![CLJDE](images/cljde-banner.svg)
+
+# CLJDE
 
 A Clojure IDE written in Python 3.11+ with PyQt6.
 
@@ -6,9 +8,9 @@ A Clojure IDE written in Python 3.11+ with PyQt6.
 **Author:** Chuck Finch / Fragillidae Software
 **License:** MIT
 
-## What is CLIDE?
+## What is CLJDE?
 
-CLIDE is a self-contained integrated development environment for Clojure,
+CLJDE is a self-contained integrated development environment for Clojure,
 designed around the principle that everything needed for productive
 REPL-driven development should live in one unified workspace.
 
@@ -27,14 +29,14 @@ pip install -r requirements.txt
 python main.py
 ```
 
-On first launch CLIDE writes its configuration directory:
+On first launch CLJDE writes its configuration directory:
 
-- Linux:   `$XDG_CONFIG_HOME/clide`  (default `~/.config/clide`)
-- macOS:   `~/Library/Application Support/clide`
-- Windows: `%APPDATA%\clide`
+- Linux:   `$XDG_CONFIG_HOME/cljde`  (default `~/.config/cljde`)
+- macOS:   `~/Library/Application Support/cljde`
+- Windows: `%APPDATA%\cljde`
 
 Inside the config directory you will find `settings.json`, a rotating
-`clide.log`, and a session cache.
+`cljde.log`, and a session cache.
 
 ## Current feature scope (Phase 1)
 

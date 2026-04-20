@@ -1,1 +1,1 @@
-"""CLIDE test package."""
+"""CLJDE test package."""

@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "clide"
+name = "cljde"
 version = "0.1.0"
-description = "CLIDE — a Clojure IDE in Python + PyQt6"
+description = "CLJDE — a Clojure IDE in Python + PyQt6"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
@@ -31,14 +31,14 @@ dev = [
 ]
 
 [project.scripts]
-clide = "clide.app:main"
+cljde = "cljde.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["clide*"]
+include = ["cljde*"]
 
 [tool.setuptools.package-data]
-clide = ["resources/themes/*.json"]
+cljde = ["resources/themes/*.json"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CLJDE icon">
+  <title>CLJDE</title>
+  <desc>CLJDE icon: black rounded square with split-color border (lime left, royal right) echoing parentheses, and cljde wordmark in sky blue and forest green.</desc>
+
+  <rect width="512" height="512" rx="72" fill="#000000"/>
+
+  <path d="M 256 10 H 72 A 62 62 0 0 0 10 72 V 440 A 62 62 0 0 0 72 502 H 256"
+        fill="none"
+        stroke="#91DC47"
+        stroke-width="20"
+        stroke-linecap="round"/>
+
+  <path d="M 256 10 H 440 A 62 62 0 0 1 502 72 V 440 A 62 62 0 0 1 440 502 H 256"
+        fill="none"
+        stroke="#5881D8"
+        stroke-width="20"
+        stroke-linecap="round"/>
+
+  <text x="256" y="302"
+        font-family="ui-monospace, 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace"
+        font-size="112"
+        font-weight="700"
+        letter-spacing="-4"
+        text-anchor="middle">
+    <tspan fill="#90B4FE">clj</tspan><tspan fill="#63B132">de</tspan>
+  </text>
+</svg>

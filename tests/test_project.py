@@ -1,10 +1,10 @@
-"""Tests for :mod:`clide.files.project`."""
+"""Tests for :mod:`cljde.files.project`."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from clide.files.project import Project, detect_project, is_clojure_file
+from cljde.files.project import Project, detect_project, is_clojure_file
 
 
 def _make_lein(root: Path, name: str = "fake-app") -> None:

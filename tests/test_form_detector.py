@@ -1,4 +1,4 @@
-"""Tests for :mod:`clide.editor.form_detector`.
+"""Tests for :mod:`cljde.editor.form_detector`.
 
 Covers the boundary cases called out in the Phase 2 spec: nested forms,
 whitespace between top-level forms, strings (both standalone and
@@ -8,7 +8,7 @@ unbalanced input, and out-of-range cursor positions.
 
 from __future__ import annotations
 
-from clide.editor.form_detector import (
+from cljde.editor.form_detector import (
     CHAR_LITERAL,
     CODE,
     COMMENT,

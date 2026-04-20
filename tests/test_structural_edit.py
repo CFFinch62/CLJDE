@@ -1,4 +1,4 @@
-"""Tests for :mod:`clide.editor.structural_edit`.
+"""Tests for :mod:`cljde.editor.structural_edit`.
 
 Exercises slurp/barf/wrap/unwrap on representative Clojure fragments:
 single-sibling slurp, last-child barf, wrap of the innermost form and
@@ -7,7 +7,7 @@ explicit ranges, and unwrap retaining the inner content.
 
 from __future__ import annotations
 
-from clide.editor.structural_edit import (
+from cljde.editor.structural_edit import (
     barf_forward,
     slurp_forward,
     unwrap_form,

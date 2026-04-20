@@ -1,4 +1,4 @@
-"""Tests for :mod:`clide.nrepl.messages`.
+"""Tests for :mod:`cljde.nrepl.messages`.
 
 Each builder is a pure function, so the tests focus on three things:
 the correct ``op`` string, the presence of required keys, and a
@@ -11,7 +11,7 @@ import string
 
 import pytest
 
-from clide.nrepl import bencode, messages
+from cljde.nrepl import bencode, messages
 
 
 _HEX = set(string.hexdigits.lower())

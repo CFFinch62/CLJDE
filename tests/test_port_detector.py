@@ -1,8 +1,8 @@
-"""Tests for :mod:`clide.repl.port_detector`."""
+"""Tests for :mod:`cljde.repl.port_detector`."""
 
 from __future__ import annotations
 
-from clide.repl.port_detector import PortDetector, detect_port_in_line
+from cljde.repl.port_detector import PortDetector, detect_port_in_line
 
 
 # --------------------------------------------------------- line-level regex
