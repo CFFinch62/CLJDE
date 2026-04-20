@@ -86,22 +86,12 @@ class MainWindow(QMainWindow):
 
     def _wire_signals(self) -> None:
         """Connect tab manager and file tree signals into main-window slots."""
-        self._tabs.cursor_position_changed_signal.connect(
-            self._status_bar.set_cursor_position,
-        )
+        self._tabs.cursor_position_changed_signal.connect(self._status_bar.set_cursor_position)
         self._tabs.current_file_changed_signal.connect(self._on_current_file_changed)
-        self._tabs.editor_notice_signal.connect(
-            lambda msg: self._status_bar.show_transient(msg, 2500),
-        )
-        self._tree.file_requested_signal.connect(
-            lambda p: file_ops.open_file(self._tabs, p),
-        )
-        self._client.connection_state_signal.connect(
-            lambda s: main_window_repl.on_connection_state(self, s),
-        )
-        self._repl_pane.ns_changed_signal.connect(
-            lambda ns: main_window_repl.on_ns_changed(self, ns),
-        )
+        self._tabs.editor_notice_signal.connect(lambda msg: self._status_bar.show_transient(msg, 2500))
+        self._tree.file_requested_signal.connect(lambda p: file_ops.open_file(self._tabs, p))
+        self._client.connection_state_signal.connect(lambda s: main_window_repl.on_connection_state(self, s))
+        self._repl_pane.ns_changed_signal.connect(lambda ns: main_window_repl.on_ns_changed(self, ns))
         main_window_repl.wire_ns_browser(self)
 
     def tab_manager(self) -> TabManager:
@@ -386,6 +376,11 @@ class MainWindow(QMainWindow):
     def stub_file_goto_namespace(self) -> None:
         """File > Go to Namespace... — fuzzy-select and switch REPL ns."""
         main_window_repl.goto_namespace(self)
+
+    def stub_help_quick_reference(self) -> None:
+        """Help > Quick Reference — open the Clojure and CLJDE cheat sheet."""
+        from cljde.ui.quick_reference_dialog import QuickReferenceDialog
+        QuickReferenceDialog.show_for(self)
 
 
 def _dock(title: str, object_name: str, widget: QWidget) -> QDockWidget:
