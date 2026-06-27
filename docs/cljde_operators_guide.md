@@ -132,9 +132,10 @@ with colour coding, and an input line that supports history
 
 ### Starting and connecting
 
-- **REPL → Start** — spawns `clojure -M:repl` (or equivalent) for the
-  current project, auto-detects the nREPL port from the process
-  output, and connects.
+- **REPL → Start** — spawns an nREPL for the current project, auto-detects
+  the listening port from the process output, and connects. The exact
+  command comes from settings: `clj -M:nrepl` for deps.edn projects and
+  `lein repl :headless …` for Leiningen projects.
 - **REPL → Connect External…** — opens a dialog to connect to an
   already-running nREPL on a given host/port.
 - **REPL → Disconnect** / **REPL → Stop** / **REPL → Restart** — manage
@@ -143,6 +144,24 @@ with colour coding, and an input line that supports history
 The status bar shows `REPL: connected (ns)` or `REPL: disconnected`,
 colour-coded green/amber.
 
+Note that the default deps.edn command (`clj -M:nrepl`) relies on the
+**target project** defining an `:nrepl` alias that launches an nREPL
+server; a bare `deps.edn` will not. The Leiningen path needs no alias.
+
+### Bundled test projects
+
+The repository ships two ready-to-use projects under `projects/` for
+exercising the REPL end-to-end:
+
+- `projects/deps-scratch/` — a deps.edn project with a working `:nrepl`
+  alias (nREPL + Clojure pinned), namespace `scratch.core`.
+- `projects/lein-scratch/` — a minimal Leiningen project, namespace
+  `lein-scratch.core`.
+
+Open either with **File → Open Project…**, open its `core.clj`, choose
+**REPL → Start**, then put the cursor inside a form in the trailing
+`(comment …)` block and press `Ctrl+Enter`. The first start downloads
+dependencies; subsequent starts are fast.
 
 ### Evaluating code
 
@@ -238,17 +257,21 @@ slurp or barf; they never edit when the buffer is unbalanced.
 
 ## 8. Settings and Configuration
 
-`~/.config/cljde/config.ini` (INI format) holds persistent settings:
+`~/.config/cljde/settings.json` (JSON format) holds persistent settings,
+grouped into top-level sections:
 
-- `[window]` — geometry, dock state, width/height
-- `[editor]` — `rainbow_parens`, tab width
-- `[files]` — `last_project_path`, `show_hidden`, recent-files list
-- `[repl]` — last-connected host/port
+- `"window"` — geometry, dock state, width/height
+- `"theme"` — active theme name
+- `"editor"` — `font_family`, `font_size`, `tab_width`, `rainbow_parens`
+- `"repl"` — `lein_command`, `clj_command`, `default_host`, `default_port`,
+  `max_history_lines`
+- `"files"` — `last_project_path`, `recent_files`, `open_tabs`,
+  `current_tab_index`, `show_hidden`, `max_recent`
 
 CLJDE writes this file on every clean shutdown. Manual edits are
 honoured on next launch but overwritten by whatever the live settings
 object decides at the next save. Use **View** toggles and the config
-dialogs rather than editing the INI directly when possible.
+dialogs rather than editing `settings.json` directly when possible.
 
 ### Logging
 
@@ -284,8 +307,8 @@ output of the terminal that launched `cljde`.
   refresh again.
 
 **Rainbow parens toggled off unexpectedly.**
-- The setting lives in `[editor]` → `rainbow_parens`. Re-enable via
-  **View → Rainbow Parens** or edit the INI.
+- The setting lives in `"editor"` → `rainbow_parens`. Re-enable via
+  **View → Rainbow Parens** or edit `settings.json`.
 
 ---
 

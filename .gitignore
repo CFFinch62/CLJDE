@@ -66,5 +66,11 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
-# CLIDE local scratch
-scratch/
+# CLJDE local scratch (top-level only; not e.g. projects/*/src/scratch)
+/scratch/
+
+# Clojure / Leiningen build artifacts (e.g. under projects/)
+.cpcache/
+target/
+.lein-repl-history
+.nrepl-port
