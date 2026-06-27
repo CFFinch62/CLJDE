@@ -5,7 +5,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
+build/*
 develop-eggs/
 dist/
 downloads/
@@ -74,3 +74,7 @@ Thumbs.db
 target/
 .lein-repl-history
 .nrepl-port
+
+# Keep build tooling under version control despite build/* and *.spec above
+!build/CLJDE.spec
+!build/build_linux.sh
