@@ -10,7 +10,7 @@ A Clojure IDE written in Python 3.11+ with PyQt6.
 
 ## What is CLJDE?
 
-CLJDE is a self-contained integrated development environment for Clojure,
+CLJDE (pronounced "CLYDE") is a self-contained integrated development environment for Clojure,
 designed around the principle that everything needed for productive
 REPL-driven development should live in one unified workspace.
 
