@@ -4,7 +4,7 @@
 
 A Clojure IDE written in Python 3.11+ with PyQt6.
 
-**Status:** Pre-alpha — Phases 1–7 complete; Phase 8 (polish & packaging) pending.
+**Status:** Beta 1 — Phases 1–7 complete; Phase 8 (polish & packaging) pending.
 **Author:** Chuck Finch / Fragillidae Software
 **License:** MIT
 
@@ -13,6 +13,8 @@ A Clojure IDE written in Python 3.11+ with PyQt6.
 CLJDE (pronounced "CLYDE") is a self-contained integrated development environment for Clojure,
 designed around the principle that everything needed for productive
 REPL-driven development should live in one unified workspace.
+
+![CLJDE IDE screenshot](images/CLJDE_IDE_Screenshot.png)
 
 ## Requirements
 
